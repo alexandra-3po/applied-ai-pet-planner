@@ -65,3 +65,44 @@ reading the output, not by the test suite (the tests only checked "differs from 
 Fixed by adding `KnowledgeChunk.snippet` (collapses wrapped newlines, returns the first full
 sentence) and picking the highest-scoring guidance chunk across the whole run, not
 positionally-first.
+
+## Reliability: Input Validation, Output Guardrail, Logging
+
+**Input validation** (`src/pawpal/models.py`): `Owner`/`Pet` reject empty/whitespace-only names;
+`Task` rejects an empty title, non-positive duration, duration over 240 minutes, and any priority
+outside `low`/`medium`/`high` — all at construction time (`__post_init__`), so invalid data can
+never reach the scheduler, retriever, or agent. `app.py` catches these as `ValueError` at both the
+"Add task" button and the "Generate schedule" button, logs a warning, and shows `st.error` instead
+of crashing.
+
+**Output guardrail** (`src/pawpal/guardrails.py`): `check_schedule_invariants(schedule,
+available_minutes)` independently re-verifies, after the fact, that (a) total scheduled minutes
+never exceeds the available budget, and (b) no two included tasks overlap in time.
+`safe_schedule_or_fallback()` applies this check and — if it ever fails — returns an empty,
+safe schedule instead of showing the user something wrong, and logs the rejection at `ERROR`
+level. This is a genuine safety net, not a restatement of the scheduler: the tests construct
+adversarial `Schedule` objects by hand (bypassing `build_schedule` entirely) to prove the
+guardrail catches problems independent of how they arose.
+
+**Logging** (`src/pawpal/logging_utils.py`): every agent run and every guardrail decision is
+logged to `logs/pawpal.log` (gitignored runtime artifact) via the standard `logging` module,
+under the `pawpal` logger namespace so all submodules' records land in one file.
+
+### Guardrail behavior, documented (input, behavior, result)
+
+| Input | Behavior | Result |
+|---|---|---|
+| `Task(title="  ", duration_minutes=10)` | `Task.__post_init__` checks `title.strip()` | Rejected: `ValueError: task title must not be empty` |
+| `Task(title="Overnight boarding", duration_minutes=500)` | Checked against `MAX_TASK_DURATION_MINUTES = 240` | Rejected: `ValueError: duration_minutes must be at most 240, got 500` |
+| `Owner(name="")` | Checked in `Owner.__post_init__` | Rejected: `ValueError: owner name must not be empty` |
+| Adversarial `Schedule` with 2 tasks totaling 80 min, budget 60 min (hand-built, bypassing the scheduler) | `check_schedule_invariants` sums included-item durations vs. `available_minutes` | Flagged: `"Over budget: 80 min scheduled but only 60 min available."`; `safe_schedule_or_fallback` returns an empty schedule, not the unsafe one |
+| Adversarial `Schedule` with two tasks whose time ranges overlap (hand-built) | `check_schedule_invariants` sorts included items by start time and checks each pair for overlap | Flagged: `"Overlapping tasks: 'A' ends at minute 510 but 'B' starts at minute 490."` |
+| Normal run: Rex, 3 tasks, 60 min budget | Guardrail checks pass | Logged: `Guardrail passed: 50 min scheduled / 60 min available, 2 task(s) included` |
+
+Real log output from an actual run (`logs/pawpal.log`, not simulated):
+
+```
+2026-08-04 21:10:01,861 INFO pawpal.agent: Agent run starting: pet=Rex species=dog tasks=3 available_minutes=60
+2026-08-04 21:10:01,862 INFO pawpal.guardrails: Guardrail passed: 50 min scheduled / 60 min available, 2 task(s) included
+2026-08-04 21:10:01,862 INFO pawpal.agent: Agent run finished: pet=Rex iterations=2 guardrail_ok=True
+```

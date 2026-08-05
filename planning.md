@@ -175,3 +175,45 @@ first full sentence) and selecting the highest-scoring guidance chunk across the
 of the positionally-first one. Re-verified after the fix (see `model_card.md`).
 
 **Status:** Complete.
+
+## Milestone 6: Reliability — Input Validation, Output Guardrail, Logging
+
+**Rubric link:** "Reliability, Evaluation, or Guardrail Component" (3pts, required) — mechanism
+functional + meaningfully improves reliability + markdown examples showing input/behavior/result.
+
+**What was done:**
+- `src/pawpal/models.py`: added `MAX_TASK_DURATION_MINUTES = 240`; `Task.__post_init__` now also
+  rejects empty/whitespace titles and over-240-min durations; new `Owner.__post_init__` and
+  `Pet.__post_init__` reject empty/whitespace names.
+- `src/pawpal/guardrails.py`: `check_schedule_invariants()` (budget + no-overlap checks,
+  independent of how the schedule was produced) and `safe_schedule_or_fallback()` (returns an
+  empty safe schedule + logs at ERROR if either check fails, otherwise logs INFO and passes
+  through unchanged).
+- `src/pawpal/logging_utils.py`: `get_logger()` configures a single `pawpal`-namespaced file
+  handler writing to `logs/pawpal.log` (added to `.gitignore` — runtime artifact, not committed).
+- `src/pawpal/agent.py`: `PlannerAgent.run()` now logs run start/end and applies
+  `safe_schedule_or_fallback` to the final schedule before returning it (adds a `"guardrail"`
+  trace step).
+- `app.py`: both the "Add task" and "Generate schedule" buttons catch `ValueError` from the model
+  validation, log a warning, and show `st.error` instead of crashing.
+- `tests/test_reliability.py`: 10 tests — 4 input-validation rejections (empty title, over-max
+  duration, empty owner/pet name), 3 guardrail checks (over-budget caught, overlap caught, valid
+  schedule passes), 2 `safe_schedule_or_fallback` behavior tests (rejects unsafe / passes through
+  valid), 1 logging test using pytest's `caplog` fixture.
+
+**Verification:**
+- `python -m pytest -v` → 31/31 passed (10 new reliability tests + 21 prior).
+- Real rejected-input demo via `python -c`: empty title, over-max duration, empty owner name all
+  produced clear `ValueError` messages, not crashes (output pasted in `model_card.md`).
+- Real adversarial-schedule demo: hand-built over-budget and overlapping `Schedule` objects
+  (bypassing `build_schedule` entirely) both correctly flagged by `check_schedule_invariants`,
+  exact message text verified and pasted into `model_card.md`.
+- Ran a real `PlannerAgent.run()` and inspected the actual `logs/pawpal.log` contents afterward —
+  pasted real (not simulated) log lines into `model_card.md`.
+- Headless Streamlit boot check on port 8506 with validation wired into both buttons → HTTP 200.
+- `model_card.md` updated with the required input/behavior/result markdown table.
+
+**Divergence from spec:** None. Note: the 240-minute task duration cap matches the existing UI
+slider bound from Milestone 2 rather than being a new arbitrary limit — documented as intentional.
+
+**Status:** Complete.

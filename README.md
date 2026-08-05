@@ -252,3 +252,41 @@ tests/test_persona.py::test_specialized_output_differs_from_baseline PASSED [ 33
 tests/test_persona.py::test_specialized_output_has_constrained_structure PASSED [ 66%]
 tests/test_persona.py::test_persona_claude_path_with_fake_client PASSED  [100%]
 ```
+
+## Milestone 6: Reliability — Input Validation, Output Guardrail, Logging
+
+**Required rubric item:** a functional reliability mechanism, demonstrated with markdown examples
+(input, behavior, result).
+
+- **Input validation** (`src/pawpal/models.py`): `Owner`/`Pet` reject empty names; `Task` rejects
+  an empty title, non-positive or over-240-minute duration, and invalid priority — all at
+  construction time, so bad data can't reach the scheduler/retriever/agent. `app.py` catches this
+  at the UI boundary (both "Add task" and "Generate schedule") and shows a clear error instead of
+  crashing.
+- **Output guardrail** (`src/pawpal/guardrails.py`): `check_schedule_invariants()` independently
+  re-checks that a schedule never exceeds its time budget and has no overlapping tasks;
+  `safe_schedule_or_fallback()` swaps in an empty, safe schedule if either check fails, rather than
+  showing the user something wrong. Tested against hand-built adversarial `Schedule` objects that
+  bypass the scheduler entirely, so it's a genuine independent safety net.
+- **Logging** (`src/pawpal/logging_utils.py`): every agent run and guardrail decision is logged to
+  `logs/pawpal.log` (gitignored) under the shared `pawpal` logger namespace.
+- Full input/behavior/result table and a real captured log excerpt are in `model_card.md`.
+
+### Run the reliability tests
+
+```bash
+python -m pytest tests/test_reliability.py -v
+```
+
+```
+tests/test_reliability.py::test_empty_task_title_rejected PASSED         [ 10%]
+tests/test_reliability.py::test_duration_over_max_rejected PASSED        [ 20%]
+tests/test_reliability.py::test_empty_owner_name_rejected PASSED         [ 30%]
+tests/test_reliability.py::test_empty_pet_name_rejected PASSED           [ 40%]
+tests/test_reliability.py::test_guardrail_catches_over_budget_schedule PASSED [ 50%]
+tests/test_reliability.py::test_guardrail_catches_overlapping_tasks PASSED [ 60%]
+tests/test_reliability.py::test_guardrail_passes_valid_schedule PASSED   [ 70%]
+tests/test_reliability.py::test_safe_schedule_or_fallback_rejects_unsafe_schedule PASSED [ 80%]
+tests/test_reliability.py::test_safe_schedule_or_fallback_passes_through_valid_schedule PASSED [ 90%]
+tests/test_reliability.py::test_agent_run_emits_log_records PASSED       [100%]
+```

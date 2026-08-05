@@ -4,6 +4,7 @@ from typing import Literal
 Priority = Literal["low", "medium", "high"]
 
 _PRIORITY_WEIGHT = {"high": 0, "medium": 1, "low": 2}
+MAX_TASK_DURATION_MINUTES = 240
 
 
 @dataclass
@@ -11,11 +12,19 @@ class Owner:
     name: str
     preferences: str = ""
 
+    def __post_init__(self):
+        if not self.name or not self.name.strip():
+            raise ValueError("owner name must not be empty")
+
 
 @dataclass
 class Pet:
     name: str
     species: str = "dog"
+
+    def __post_init__(self):
+        if not self.name or not self.name.strip():
+            raise ValueError("pet name must not be empty")
 
 
 @dataclass
@@ -26,8 +35,14 @@ class Task:
     category: str = "general"
 
     def __post_init__(self):
+        if not self.title or not self.title.strip():
+            raise ValueError("task title must not be empty")
         if self.duration_minutes <= 0:
             raise ValueError(f"duration_minutes must be positive, got {self.duration_minutes}")
+        if self.duration_minutes > MAX_TASK_DURATION_MINUTES:
+            raise ValueError(
+                f"duration_minutes must be at most {MAX_TASK_DURATION_MINUTES}, got {self.duration_minutes}"
+            )
         if self.priority not in _PRIORITY_WEIGHT:
             raise ValueError(f"priority must be one of {list(_PRIORITY_WEIGHT)}, got {self.priority!r}")
 

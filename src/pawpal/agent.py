@@ -2,12 +2,16 @@ import json
 import os
 from dataclasses import dataclass, field
 
+from .guardrails import safe_schedule_or_fallback
+from .logging_utils import get_logger
 from .models import Pet, Schedule, Task
 from .retrieval import KnowledgeChunk, load_knowledge_base, retrieve
 from .scheduler import build_schedule, format_time
 
 DEFAULT_MAX_ITERATIONS = 2
 CLAUDE_MODEL = "claude-haiku-4-5-20251001"
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -112,6 +116,10 @@ class PlannerAgent:
         self.kb = knowledge_base if knowledge_base is not None else load_knowledge_base()
 
     def run(self, pet: Pet, tasks: list[Task], available_minutes: int) -> AgentRun:
+        logger.info(
+            "Agent run starting: pet=%s species=%s tasks=%d available_minutes=%d",
+            pet.name, pet.species, len(tasks), available_minutes,
+        )
         run = AgentRun()
         working_tasks = list(tasks)
 
@@ -153,8 +161,18 @@ class PlannerAgent:
                 f"{len(schedule.skipped_items)} skipped",
             )
 
-        run.schedule = schedule
-        run.explanation = explain_plain(pet, schedule)
+        safe_schedule, guardrail_issues = safe_schedule_or_fallback(schedule, available_minutes)
+        if guardrail_issues:
+            run.log("guardrail", f"REJECTED unsafe schedule: {'; '.join(guardrail_issues)}")
+        else:
+            run.log("guardrail", "Schedule passed output guardrail checks (budget + no overlaps)")
+
+        run.schedule = safe_schedule
+        run.explanation = explain_plain(pet, safe_schedule)
+        logger.info(
+            "Agent run finished: pet=%s iterations=%d guardrail_ok=%s",
+            pet.name, run.iterations, not guardrail_issues,
+        )
         return run
 
 

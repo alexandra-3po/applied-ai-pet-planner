@@ -9,9 +9,11 @@ from pawpal.scheduler import format_time
 from pawpal.retrieval import load_knowledge_base, retrieve
 from pawpal.agent import PlannerAgent, format_trace_markdown
 from pawpal.persona import baseline_vs_specialized
+from pawpal.logging_utils import get_logger
 
 KNOWLEDGE_BASE = load_knowledge_base()
 AGENT = PlannerAgent(knowledge_base=KNOWLEDGE_BASE)
+logger = get_logger("pawpal.app")
 
 st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="centered")
 
@@ -62,9 +64,15 @@ with col5:
     st.write("")
     st.write("")
     if st.button("Add"):
-        st.session_state.tasks.append(
-            {"title": task_title, "duration_minutes": int(duration), "priority": priority, "category": category}
-        )
+        try:
+            Task(title=task_title, duration_minutes=int(duration), priority=priority, category=category)
+        except ValueError as exc:
+            logger.warning("Rejected invalid task input: %s", exc)
+            st.error(f"Couldn't add task: {exc}")
+        else:
+            st.session_state.tasks.append(
+                {"title": task_title, "duration_minutes": int(duration), "priority": priority, "category": category}
+            )
 
 if st.session_state.tasks:
     st.table(st.session_state.tasks)
@@ -74,17 +82,22 @@ else:
 st.divider()
 
 if st.button("Generate schedule", type="primary"):
-    owner = Owner(name=owner_name)
-    pet = Pet(name=pet_name, species=species)
-    tasks = [
-        Task(
-            title=t["title"],
-            duration_minutes=t["duration_minutes"],
-            priority=t["priority"],
-            category=t.get("category", "general"),
-        )
-        for t in st.session_state.tasks
-    ]
+    try:
+        owner = Owner(name=owner_name)
+        pet = Pet(name=pet_name, species=species)
+        tasks = [
+            Task(
+                title=t["title"],
+                duration_minutes=t["duration_minutes"],
+                priority=t["priority"],
+                category=t.get("category", "general"),
+            )
+            for t in st.session_state.tasks
+        ]
+    except ValueError as exc:
+        logger.warning("Rejected invalid input: %s", exc)
+        st.error(f"Couldn't build a schedule: {exc}")
+        st.stop()
 
     run = AGENT.run(pet, tasks, available_minutes=available_minutes)
     schedule = run.schedule
