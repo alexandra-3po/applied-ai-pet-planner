@@ -1,0 +1,76 @@
+flowchart TD
+    subgraph UI["Streamlit UI (app.py)"]
+        Input["Owner / Pet / Task input<br/>+ available minutes"]
+        Toggle["Plain / Coach Paws toggle"]
+        Output["Rendered plan, guidance citations,<br/>trace expander"]
+    end
+
+    subgraph Validation["Input validation (models.py)"]
+        Validate["Owner / Pet / Task __post_init__<br/>(empty name, bad duration/priority)"]
+        Reject["st.error shown,<br/>logged via logging_utils"]
+    end
+
+    subgraph Agent["Agentic loop (agent.py: PlannerAgent.run)"]
+        Plan["Plan:<br/>retrieve() per task"]
+        Act["Act:<br/>build_schedule() (scheduler.py)"]
+        Critique["Critique:<br/>Claude API (claude-haiku-4-5)<br/>or rule-based fallback"]
+        Revise["Revise:<br/>apply priority overrides,<br/>rebuild schedule"]
+    end
+
+    subgraph RAG["RAG (retrieval.py)"]
+        KB["knowledge/*.md<br/>(5 source docs)"]
+        Retrieve["TF-IDF retrieve()"]
+    end
+
+    subgraph Guardrail["Output guardrail (guardrails.py)"]
+        Check["check_schedule_invariants:<br/>budget + no-overlap"]
+        Fallback["safe_schedule_or_fallback:<br/>empty schedule if unsafe"]
+    end
+
+    subgraph Persona["Specialization (persona.py)"]
+        Baseline["explain_plain (baseline)"]
+        Specialized["explain_with_persona<br/>(Claude few-shot or template)"]
+    end
+
+    subgraph Logs["Logging + traces"]
+        LogFile["logs/pawpal.log<br/>(every run, automatic)"]
+        Traces["ai_interactions.md<br/>(captured example run,<br/>via format_trace_markdown)"]
+    end
+
+    subgraph Testing["Testing (human/automated checkpoints)"]
+        Pytest["pytest suite (31 tests)"]
+        Harness["scripts/evaluate.py<br/>(6 scenarios, pass/fail)"]
+    end
+
+    Input --> Validate
+    Validate -- invalid --> Reject
+    Reject --> Output
+    Validate -- valid --> Plan
+
+    Plan --> Retrieve
+    KB --> Retrieve
+    Retrieve --> Plan
+    Plan --> Act
+    Act --> Critique
+    Critique -- issues found --> Revise
+    Revise --> Act
+    Critique -- ok --> Check
+    Check -- fails --> Fallback
+    Check -- passes --> Fallback
+    Fallback --> Baseline
+    Fallback --> Specialized
+    Baseline --> Toggle
+    Specialized --> Toggle
+    Toggle --> Output
+
+    Plan -. logs .-> LogFile
+    Act -. logs .-> LogFile
+    Critique -. logs .-> LogFile
+    Fallback -. logs .-> LogFile
+    Agent -. format_trace_markdown .-> Traces
+
+    Pytest -. exercises .-> Agent
+    Pytest -. exercises .-> RAG
+    Pytest -. exercises .-> Guardrail
+    Pytest -. exercises .-> Persona
+    Harness -. exercises .-> Agent

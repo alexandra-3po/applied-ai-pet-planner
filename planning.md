@@ -248,3 +248,46 @@ multiple predefined inputs, printing a pass/fail summary.
 **Divergence from spec:** None.
 
 **Status:** Complete.
+
+## Milestone 8: Architecture Diagram
+
+**Rubric link:** "System Architecture Diagram" (3pts, required) — Mermaid source file, clear data
+flow (input -> processing -> output), matches actual implementation.
+
+**What was done:**
+- `diagrams/architecture.mmd`: a system-level Mermaid flowchart (distinct from `diagrams/uml.mmd`,
+  the M2 class diagram) showing: UI input -> validation -> agentic plan/act/critique/revise loop
+  -> output guardrail -> specialization/narration -> UI output, plus logging and the pytest/
+  evaluation-harness testing checkpoints as dotted-line side paths.
+- Cross-checked every diagram node against the actual file/function it represents (see
+  verification below) rather than drawing an aspirational/theoretical diagram.
+- README updated with a "Milestone 8: Architecture Overview" section: a plain-language,
+  step-by-step walkthrough matching the diagram, and a link to the `.mmd` source.
+
+**Verification:**
+- No Mermaid renderer is available in this development environment, so instead of only manually
+  checking bracket/subgraph balance, the diagram was actually rendered server-side via kroki.io's
+  Mermaid engine: `curl -X POST --data-binary @diagrams/architecture.mmd https://kroki.io/mermaid/svg`
+  returned a valid SVG flowchart (HTTP 200, real flowchart SVG content) both before and after a
+  later accuracy fix — genuine syntax validation, not just eyeballing.
+- Node-by-node cross-check against real code: Input/Validate/Reject -> `app.py` +
+  `models.py.__post_init__`; Plan/Act/Critique/Revise -> `agent.py PlannerAgent.run()`; KB/Retrieve
+  -> `retrieval.py`; Check/Fallback -> `guardrails.py`; Baseline/Specialized -> `agent.explain_plain`
+  / `persona.explain_with_persona`; LogFile -> `logging_utils.py`; Traces -> `ai_interactions.md`;
+  Pytest/Harness -> the actual test suite and `scripts/evaluate.py`. Every node maps to a real,
+  already-built file/function — nothing in the diagram is aspirational.
+- Structural check: 8 `subgraph`/8 `end`, balanced `[`/`]` (27/27), balanced quotes (54, even).
+
+**Issue caught and fixed during verification:** the first draft had `Plan`/`Act`/`Critique`/
+`Revise` each drawing a dotted "trace" edge directly into `ai_interactions.md`, implying every
+single run automatically appends its trace there. That's not what the code does — only one real,
+manually-captured example run is committed to `ai_interactions.md` (Milestone 4); the live
+per-run trace only appears in the Streamlit "Agent reasoning trace" expander and `logs/pawpal.log`.
+Fixed by replacing those 4 edges with a single accurate edge (`Agent -. format_trace_markdown .->
+Traces`) and relabeling the node to say "captured example run", not "saved reasoning traces"
+(which read as automatic/comprehensive). Re-rendered via kroki.io after the fix to confirm it
+still parses.
+
+**Divergence from spec:** None, after the fix above.
+
+**Status:** Complete.

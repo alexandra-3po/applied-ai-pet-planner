@@ -328,3 +328,39 @@ scenario's expectation was deliberately corrupted in a throwaway in-memory test,
 produced `[FAIL]`, `5 out of 6 scenarios passed.`, and exit code 1 — see `planning.md` Milestone 7
 for the full verification transcript. The real `scripts/evaluate.py` file was never modified for
 that check.
+
+## Milestone 8: Architecture Overview
+
+Full source diagram: [`diagrams/architecture.mmd`](diagrams/architecture.mmd) (Mermaid flowchart,
+system-level data flow — distinct from [`diagrams/uml.mmd`](diagrams/uml.mmd), which is the
+Milestone 2 class diagram for the domain models).
+
+**Verification note:** there's no Mermaid renderer in the development environment used to build
+this, so the diagram was validated by actually rendering it server-side via `kroki.io`'s Mermaid
+engine (`curl -X POST --data-binary @diagrams/architecture.mmd https://kroki.io/mermaid/svg`),
+which returned a valid SVG flowchart both before and after a later accuracy fix — not just eyeballed
+for balanced brackets. It also renders natively in GitHub's file viewer and the Mermaid Live Editor.
+
+### Plain-language walkthrough
+
+1. **Input**: the Streamlit UI (`app.py`) collects owner/pet info, tasks, and available minutes.
+2. **Validation**: `Owner`/`Pet`/`Task` construction (`models.py`) rejects bad input immediately;
+   invalid input shows an error and never reaches the agent.
+3. **Plan**: `PlannerAgent.run()` (`agent.py`) retrieves relevant care guidance for each task from
+   the knowledge base (`retrieval.py` + `knowledge/*.md`) using TF-IDF scoring.
+4. **Act**: builds a candidate schedule (`scheduler.py`).
+5. **Critique**: checks the candidate against the retrieved guidance — via the real Claude API
+   when a key is set, or a deterministic rule-based fallback otherwise.
+6. **Revise**: if the critique flags an issue, task priorities are adjusted and the loop returns
+   to Act (up to 2 iterations).
+7. **Output guardrail**: once the loop settles, `guardrails.py` independently re-checks the final
+   schedule for budget/overlap violations before it's ever shown to a user, falling back to an
+   empty-safe schedule if something's wrong.
+8. **Narration**: the same validated schedule is rendered two ways — a plain baseline and a
+   "Coach Paws" specialized persona (`persona.py`) — and the UI toggle picks which one to show.
+9. **Output**: the final plan, guidance citations, and the full agent reasoning trace are
+   displayed back in the Streamlit UI.
+10. **Testing/human checkpoints** (dotted lines): the pytest suite and the standalone evaluation
+    harness (`scripts/evaluate.py`) both exercise these same real components directly, rather than
+    only being validated through the UI; every run also writes to `logs/pawpal.log`, and one real
+    captured run's reasoning trace is committed in `ai_interactions.md` for human inspection.
