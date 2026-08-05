@@ -106,3 +106,25 @@ Real log output from an actual run (`logs/pawpal.log`, not simulated):
 2026-08-04 21:10:01,862 INFO pawpal.guardrails: Guardrail passed: 50 min scheduled / 60 min available, 2 task(s) included
 2026-08-04 21:10:01,862 INFO pawpal.agent: Agent run finished: pet=Rex iterations=2 guardrail_ok=True
 ```
+
+## Testing Summary
+
+**Automated tests:** 31/31 pytest tests passing across scheduler, retrieval, agent, persona, and
+reliability modules (`python -m pytest -v`).
+
+**End-to-end evaluation harness (`scripts/evaluate.py`):** 6 out of 6 predefined scenarios passed
+— covering a well-covered schedule (no revision), an under-exercised schedule (revision fixes it),
+correct RAG grounding for a cat scenario, a hand-built adversarial over-budget schedule (guardrail
+catches it), an invalid-input scenario (rejected cleanly, no crash), and a tight-budget scenario
+(clean skip reasoning). Full real output is in the README's Milestone 7 section.
+
+**What worked:** the agentic critique-and-revise loop reliably fixes the one guideline it's
+designed to check (dog exercise minutes) without ever violating the output guardrail's budget/
+overlap invariants. RAG retrieval correctly grounds species- and category-specific queries after
+switching to TF-IDF weighting (see Milestone 3).
+
+**What didn't/limitations:** the rule-based critique fallback only checks one guideline
+(exercise minutes) — it has no way to check medication timing, litter box frequency, or grooming
+cadence without an LLM call, so those guidelines are only enforced when a real Claude API key is
+present. The knowledge base has no dog-specific enrichment document (see Milestone 3), so a dog's
+"Playtime" task retrieves cat-enrichment content instead.

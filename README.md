@@ -290,3 +290,41 @@ tests/test_reliability.py::test_safe_schedule_or_fallback_rejects_unsafe_schedul
 tests/test_reliability.py::test_safe_schedule_or_fallback_passes_through_valid_schedule PASSED [ 90%]
 tests/test_reliability.py::test_agent_run_emits_log_records PASSED       [100%]
 ```
+
+## Milestone 7: Evaluation Harness
+
+**Stretch feature:** `scripts/evaluate.py` is a standalone script (not part of the pytest suite)
+that runs the real system — scheduler, RAG retrieval, agentic loop, guardrails, validation — against
+6 predefined scenarios and prints a pass/fail summary, matching the spec's example format ("5 out
+of 6 tests passed..."). Exits with code 1 if anything fails, so it can gate CI.
+
+```bash
+python scripts/evaluate.py
+```
+
+Real output:
+
+```
+Applied AI Pet Planner -- Evaluation Harness
+============================================================
+[PASS] Well-covered dog schedule needs no revision
+       45 exercise min scheduled, no revision needed (correct)
+[PASS] Under-exercised dog schedule gets revised
+       revised as expected, final exercise minutes = 30
+[PASS] Cat litter-box query grounds in the right document
+       correctly grounded in cat_enrichment.md -> Litter box maintenance (score=20.3)
+[PASS] Guardrail catches an over-budget adversarial schedule
+       guardrail correctly rejected and fell back to empty schedule: Over budget: 80 min scheduled but only 60 min available.
+[PASS] Empty task title is rejected cleanly, not a crash
+       empty title cleanly rejected: task title must not be empty
+[PASS] Tight budget forces a task to be skipped with a clear reason
+       correctly skipped with reason: skipped: needs 40 min but only 15 min remain
+============================================================
+6 out of 6 scenarios passed.
+```
+
+The harness was verified to actually detect failures (not just print PASS unconditionally): a
+scenario's expectation was deliberately corrupted in a throwaway in-memory test, which correctly
+produced `[FAIL]`, `5 out of 6 scenarios passed.`, and exit code 1 — see `planning.md` Milestone 7
+for the full verification transcript. The real `scripts/evaluate.py` file was never modified for
+that check.

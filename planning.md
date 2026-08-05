@@ -217,3 +217,34 @@ functional + meaningfully improves reliability + markdown examples showing input
 slider bound from Milestone 2 rather than being a new arbitrary limit — documented as intentional.
 
 **Status:** Complete.
+
+## Milestone 7: Evaluation Harness
+
+**Rubric link:** "Test Harness or Evaluation Script" (+2pts stretch) — a script evaluating
+multiple predefined inputs, printing a pass/fail summary.
+
+**What was done:**
+- `scripts/evaluate.py`: standalone script (run directly, not via pytest) with 6 scenarios that
+  exercise the real system end-to-end: well-covered dog schedule (no revision expected),
+  under-exercised dog (revision expected + verified), cat litter-box RAG grounding, hand-built
+  adversarial over-budget schedule (guardrail expected to catch it), empty-title input (expected
+  clean rejection), and a too-small time budget (expected clean skip reasoning). Each scenario
+  returns `(passed: bool, detail: str)`; the script prints a `[PASS]`/`[FAIL]` line + detail per
+  scenario, then a summary line in the spec's requested format ("N out of M scenarios passed"),
+  and exits with code 1 if anything failed.
+
+**Verification:**
+- Ran `python scripts/evaluate.py` directly → `6 out of 6 scenarios passed.`, exit code 0. Full
+  real output pasted into README.
+- Proved the harness actually detects failures, not just prints PASS unconditionally: in a
+  throwaway `python -c` session (the committed `scripts/evaluate.py` file itself was never
+  edited), monkey-patched `evaluate.SCENARIOS[0]` to a deliberately-broken variant and reran
+  `evaluate.main()` → correctly printed `[FAIL] ... DELIBERATELY BROKEN FOR VERIFICATION: ...`,
+  `5 out of 6 scenarios passed.`, and returned exit code 1. Reran the real, unmodified script
+  afterward to confirm it was untouched and still reports `6 out of 6`.
+- `model_card.md` updated with a Testing Summary section in the spec's requested prose format
+  ("X out of Y tests passed; ..."), plus what worked / what didn't / limitations.
+
+**Divergence from spec:** None.
+
+**Status:** Complete.
