@@ -30,6 +30,17 @@ class KnowledgeChunk:
     def citation(self) -> str:
         return f"{self.source} -> {self.heading}"
 
+    @property
+    def snippet(self) -> str:
+        """First full sentence of the chunk body, with hard-wrapped newlines
+        collapsed to spaces (source .md files wrap prose at ~80 chars, so a
+        naive `text.splitlines()[0]` can cut a sentence off mid-word)."""
+        flat = " ".join(self.text.split())
+        period_idx = flat.find(". ")
+        if period_idx != -1:
+            return flat[: period_idx + 1]
+        return flat
+
 
 def load_knowledge_base(directory: Path = DEFAULT_KNOWLEDGE_DIR) -> list[KnowledgeChunk]:
     """Parse every .md file in `directory` into chunks split on '## ' headings.

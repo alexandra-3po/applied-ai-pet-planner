@@ -154,11 +154,11 @@ class PlannerAgent:
             )
 
         run.schedule = schedule
-        run.explanation = _explain(pet, schedule)
+        run.explanation = explain_plain(pet, schedule)
         return run
 
 
-def _explain(pet: Pet, schedule: Schedule) -> str:
+def explain_plain(pet: Pet, schedule: Schedule) -> str:
     lines = [f"Daily plan for {pet.name} ({pet.species}):"]
     for item in schedule.included_items:
         lines.append(

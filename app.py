@@ -8,6 +8,7 @@ from pawpal.models import Owner, Pet, Task
 from pawpal.scheduler import format_time
 from pawpal.retrieval import load_knowledge_base, retrieve
 from pawpal.agent import PlannerAgent, format_trace_markdown
+from pawpal.persona import baseline_vs_specialized
 
 KNOWLEDGE_BASE = load_knowledge_base()
 AGENT = PlannerAgent(knowledge_base=KNOWLEDGE_BASE)
@@ -99,7 +100,7 @@ if st.button("Generate schedule", type="primary"):
                 f"({item.task.duration_minutes} min) [{item.task.priority}] — {item.reason}")
         if matches:
             chunk, _score = matches[0]
-            line += f"  \n  -> *Care guidance ({chunk.citation}): {chunk.text.splitlines()[0]}*"
+            line += f"  \n  -> *Care guidance ({chunk.citation}): {chunk.snippet}*"
         st.write(line)
 
     if schedule.skipped_items:
@@ -108,6 +109,15 @@ if st.button("Generate schedule", type="primary"):
             st.write(f"- {item.task.title}: {item.reason}")
 
     st.caption(f"Total scheduled: {schedule.total_scheduled_minutes} / {available_minutes} min")
+
+    st.divider()
+    tone = st.radio("Narration style", ["Plain", "Coach Paws"], horizontal=True, key="tone_choice")
+    comparison = baseline_vs_specialized(pet, schedule, run.guidance)
+    if tone == "Plain":
+        st.code(comparison["baseline"])
+    else:
+        st.markdown(comparison["specialized"])
+        st.caption(f"Specialized narration source: {comparison['specialized_source']}")
 
     with st.expander("📚 All retrieved care guidance for this pet/tasks"):
         overall_query = f"{pet.species} " + " ".join(t.title for t in tasks)

@@ -133,3 +133,45 @@ one rule, which is the intended division of labor between the deterministic fall
 real model.
 
 **Status:** Complete.
+
+## Milestone 5: Specialization/Tone Layer ("Coach Paws" persona)
+
+**Rubric link:** "Fine-Tuning or Specialization Behavior" (+2pts stretch) — specialized model
+behavior via few-shot patterns/constrained tone, with a baseline-vs-specialized comparison in
+`model_card.md`.
+
+**What was done:**
+- Renamed `agent._explain` to public `explain_plain` so it can be reused as the baseline.
+- `src/pawpal/persona.py`: `PERSONA_SYSTEM_PROMPT` + 2 few-shot example pairs define a fixed
+  4-part "Coach Paws" structure. `explain_with_persona()` dispatches to `_persona_with_claude()`
+  (real Claude call with the few-shot messages) when `ANTHROPIC_API_KEY` is set, else
+  `_persona_template()` (deterministic, same structure). `baseline_vs_specialized()` returns both
+  renderings of the same schedule for direct comparison.
+- `app.py`: added a "Plain" / "Coach Paws" radio toggle so both outputs are visible in the running
+  app for the same generated schedule.
+- `model_card.md`: Specialization section with the real baseline vs. specialized text, a
+  measurable-differences table (word count, persona marker, structure, guideline citation), and a
+  documented bug this comparison caught (see below).
+- `tests/test_persona.py`: 3 tests — specialized output differs from baseline and contains the
+  persona marker while baseline doesn't; specialized output has the constrained structure; the
+  real Claude few-shot code path is exercised via a mocked `anthropic` module.
+
+**Verification:**
+- `python -m pytest -v` → 21/21 passed (3 new persona tests + 18 prior).
+- Real run via `python -c` (with `PYTHONIOENCODING=utf-8` to avoid the Windows console crash)
+  printing baseline vs. specialized side by side, plus word counts — pasted into `model_card.md`.
+- Headless Streamlit boot check on port 8505 with the tone toggle wired in → HTTP 200.
+
+**Bug found and fixed during verification (not just described as a divergence):** the first
+`_persona_template()` cited `guidance[0]` — the retrieval result for whichever task the owner
+listed *first*, not necessarily one that ended up in the final schedule. In the demo scenario this
+cited the Grooming guideline in a closing "keep it up!" line about a plan that didn't include
+grooming. Separately, because `knowledge/grooming_basics.md`'s prose is hard-wrapped across lines,
+`chunk.text.splitlines()[0]` cut that citation off mid-sentence ("...cats are largely Keep it
+up!"). Both were only caught by actually printing and reading the real output — the persona tests
+(structure + "differs from baseline") wouldn't have caught either. Fixed by adding
+`KnowledgeChunk.snippet` (`src/pawpal/retrieval.py`, collapses wrapped newlines and returns the
+first full sentence) and selecting the highest-scoring guidance chunk across the whole run instead
+of the positionally-first one. Re-verified after the fix (see `model_card.md`).
+
+**Status:** Complete.

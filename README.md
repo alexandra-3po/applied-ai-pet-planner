@@ -223,3 +223,32 @@ tests/test_agent.py::test_well_covered_schedule_needs_no_revision PASSED [ 60%]
 tests/test_agent.py::test_format_trace_markdown_structure PASSED         [ 80%]
 tests/test_agent.py::test_claude_critique_path_with_fake_client PASSED   [100%]
 ```
+
+## Milestone 5: Specialization — "Coach Paws" persona
+
+**Stretch feature:** `src/pawpal/persona.py` narrates the same schedule in a fixed, constrained
+tone ("Coach Paws") via few-shot prompting, alongside the plain baseline explanation, so the
+difference is directly comparable.
+
+- `PERSONA_SYSTEM_PROMPT` + two hand-written few-shot examples define a fixed 4-part structure:
+  greeting → today's plan → skip note (if any) → one motivational line tied to a retrieved
+  guideline. Under 80 words, always this shape.
+- `explain_with_persona()` calls Claude (`claude-haiku-4-5-20251001`) with the few-shot messages
+  when `ANTHROPIC_API_KEY` is set; otherwise a deterministic template produces the same fixed
+  structure without a model call — same fallback pattern as Milestone 4.
+- The Streamlit app has a "Plain" / "Coach Paws" toggle so both renderings of the exact same
+  schedule are visible side by side in the running app, not just in docs.
+- Full baseline-vs-specialized comparison, with measurable differences and a bug this comparison
+  caught, is in `model_card.md`.
+
+### Run the persona tests
+
+```bash
+python -m pytest tests/test_persona.py -v
+```
+
+```
+tests/test_persona.py::test_specialized_output_differs_from_baseline PASSED [ 33%]
+tests/test_persona.py::test_specialized_output_has_constrained_structure PASSED [ 66%]
+tests/test_persona.py::test_persona_claude_path_with_fake_client PASSED  [100%]
+```
