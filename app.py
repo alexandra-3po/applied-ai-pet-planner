@@ -5,10 +5,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
 import streamlit as st
 from pawpal.models import Owner, Pet, Task
-from pawpal.scheduler import build_schedule, format_time
+from pawpal.scheduler import format_time
 from pawpal.retrieval import load_knowledge_base, retrieve
+from pawpal.agent import PlannerAgent, format_trace_markdown
 
 KNOWLEDGE_BASE = load_knowledge_base()
+AGENT = PlannerAgent(knowledge_base=KNOWLEDGE_BASE)
 
 st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="centered")
 
@@ -36,15 +38,17 @@ with col_c:
 
 available_minutes = st.slider("Available minutes today", min_value=15, max_value=480, value=90, step=5)
 
+TASK_CATEGORIES = ["exercise", "feeding", "grooming", "medication", "enrichment", "general"]
+
 st.markdown("### Tasks")
 if "tasks" not in st.session_state:
     st.session_state.tasks = [
-        {"title": "Morning walk", "duration_minutes": 30, "priority": "high"},
-        {"title": "Feeding", "duration_minutes": 10, "priority": "high"},
-        {"title": "Playtime", "duration_minutes": 20, "priority": "low"},
+        {"title": "Morning walk", "duration_minutes": 30, "priority": "high", "category": "exercise"},
+        {"title": "Feeding", "duration_minutes": 10, "priority": "high", "category": "feeding"},
+        {"title": "Playtime", "duration_minutes": 20, "priority": "low", "category": "enrichment"},
     ]
 
-col1, col2, col3, col4 = st.columns([3, 2, 2, 1])
+col1, col2, col3, col4, col5 = st.columns([3, 2, 2, 2, 1])
 with col1:
     task_title = st.text_input("Task title", value="Grooming", key="new_title")
 with col2:
@@ -52,11 +56,13 @@ with col2:
 with col3:
     priority = st.selectbox("Priority", ["low", "medium", "high"], index=1, key="new_priority")
 with col4:
+    category = st.selectbox("Category", TASK_CATEGORIES, index=2, key="new_category")
+with col5:
     st.write("")
     st.write("")
     if st.button("Add"):
         st.session_state.tasks.append(
-            {"title": task_title, "duration_minutes": int(duration), "priority": priority}
+            {"title": task_title, "duration_minutes": int(duration), "priority": priority, "category": category}
         )
 
 if st.session_state.tasks:
@@ -70,12 +76,22 @@ if st.button("Generate schedule", type="primary"):
     owner = Owner(name=owner_name)
     pet = Pet(name=pet_name, species=species)
     tasks = [
-        Task(title=t["title"], duration_minutes=t["duration_minutes"], priority=t["priority"])
+        Task(
+            title=t["title"],
+            duration_minutes=t["duration_minutes"],
+            priority=t["priority"],
+            category=t.get("category", "general"),
+        )
         for t in st.session_state.tasks
     ]
-    schedule = build_schedule(tasks, available_minutes=available_minutes)
+
+    run = AGENT.run(pet, tasks, available_minutes=available_minutes)
+    schedule = run.schedule
 
     st.subheader(f"Daily plan for {pet.name} ({pet.species}) — owner: {owner.name}")
+    if any(e.step == "revise" for e in run.trace):
+        st.info(f"The planning agent revised this schedule {run.iterations - 1} time(s) after self-critique.")
+
     for item in schedule.included_items:
         guidance_query = f"{pet.species} {item.task.title} {item.task.category}"
         matches = retrieve(guidance_query, KNOWLEDGE_BASE, k=1)
@@ -101,3 +117,6 @@ if st.button("Generate schedule", type="primary"):
                 st.markdown(f"**{chunk.citation}** (relevance score: {score})\n\n{chunk.text}")
         else:
             st.write("No matching guidance found for these tasks.")
+
+    with st.expander("🤖 Agent reasoning trace (plan → act → critique → revise)"):
+        st.markdown(format_trace_markdown(run, run_label="Live Agent Run"))

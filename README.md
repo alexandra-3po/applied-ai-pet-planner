@@ -147,3 +147,79 @@ tests/test_retrieval.py::test_cat_litter_box_query_ranks_relevant_chunk_top PASS
 tests/test_retrieval.py::test_irrelevant_query_returns_no_matches PASSED [ 80%]
 tests/test_retrieval.py::test_retrieve_respects_k_limit PASSED           [100%]
 ```
+
+## Milestone 4: Agentic Planning Loop
+
+**Required AI feature:** a real plan → act → critique → revise loop, not a one-shot call.
+`src/pawpal/agent.py`'s `PlannerAgent.run()`:
+
+1. **Plan** — retrieves care guidance (Milestone 3's `retrieve()`) for every task.
+2. **Act** — calls `build_schedule()` (a tool call) to produce a candidate schedule.
+3. **Critique** — checks the candidate against the retrieved guidance and flags problems
+   (e.g., a dog getting under 30 minutes of exercise, per `knowledge/dog_exercise.md`).
+4. **Revise** — if the critique flags an issue, raises the affected task's priority and rebuilds
+   the schedule; repeats up to `max_iterations` (default 2).
+5. **Explain** — produces the final natural-language plan once the loop settles.
+
+### Real Claude call with automatic fallback
+
+The critique step calls the **Anthropic API** (`claude-haiku-4-5-20251001`) when
+`ANTHROPIC_API_KEY` is set in the environment, sending the candidate schedule and retrieved
+guidance and asking for a structured JSON verdict. If no key is set, or the API call fails for
+any reason, it falls back to a deterministic rule-based critique automatically — the system is
+always runnable and gradeable without an API key, while the real LLM code path exists and is
+exercised by `tests/test_agent.py::test_claude_critique_path_with_fake_client` (a mocked client,
+no network/key needed).
+
+```bash
+export ANTHROPIC_API_KEY=sk-...   # optional — omit to use the rule-based critique
+streamlit run app.py
+```
+
+### Reasoning traces are saved, not just printed
+
+Every run's plan/act/critique/revise steps are recorded as structured `TraceEntry` objects and
+rendered via `format_trace_markdown()`. The Streamlit app shows them in an "🤖 Agent reasoning
+trace" expander, and a concrete real run is committed to `ai_interactions.md` (not templated
+placeholder text) — see that file for the full example below.
+
+### Sample interaction: under-exercised dog gets revised
+
+Input: dog "Rex", 60 available minutes, tasks: Grooming (40 min, high, grooming), Feeding
+(20 min, high, feeding), Morning walk (30 min, **low**, exercise).
+
+```
+1. plan -- Gathering care guidance for dog across 3 task(s)
+2. plan -- Retrieved 3 guidance snippet(s): grooming_basics.md -> Bathing; feeding_basics.md -> Portion consistency; dog_exercise.md -> Daily walk requirements
+3. act -- Built candidate schedule: 2 included, 1 skipped
+4. critique -- [rules (no ANTHROPIC_API_KEY set)] ok=False issues=['Only 0 min of exercise scheduled; guidelines recommend 30-60 min/day for dogs.']
+5. revise -- Applied priority overrides: {'Morning walk': 'high'}
+6. act -- Rebuilt schedule after revision: 2 included, 1 skipped
+7. critique -- [rules (no ANTHROPIC_API_KEY set)] ok=True issues=[]
+
+Final explanation:
+Daily plan for Rex (dog):
+08:00 - Feeding (20 min) [high] - included: high priority, fits in remaining 60 min
+08:20 - Morning walk (30 min) [high] - included: high priority, fits in remaining 40 min
+Skipped:
+  - Grooming: skipped: needs 40 min but only 10 min remain
+```
+
+The walk started out low priority and would have been skipped entirely; the agent's critique
+step caught the exercise shortfall against the retrieved guideline and revised the plan to
+include it, at the cost of the lower-value grooming task. This is a meaningful behavior change,
+not cosmetic — the initial and final schedules differ.
+
+### Run the agent tests
+
+```bash
+python -m pytest tests/test_agent.py -v
+```
+
+```
+tests/test_agent.py::test_agent_loop_terminates_and_produces_schedule PASSED [ 20%]
+tests/test_agent.py::test_under_exercised_dog_triggers_revision_and_fixes_it PASSED [ 40%]
+tests/test_agent.py::test_well_covered_schedule_needs_no_revision PASSED [ 60%]
+tests/test_agent.py::test_format_trace_markdown_structure PASSED         [ 80%]
+tests/test_agent.py::test_claude_critique_path_with_fake_client PASSED   [100%]
+```

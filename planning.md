@@ -88,3 +88,48 @@ Custom Indexing or Multi-Source Retrieval" (+2pts stretch).
   species-precise). Captured in README rather than hidden.
 
 **Status:** Complete.
+
+## Milestone 4: Agentic Planning Loop
+
+**Rubric link:** "Substantial New AI Feature Added ... Agentic Workflow" (3pts, required, this is
+in addition to RAG which already covers the required-feature bar) + "Agentic Workflow Enhancement"
+(+2pts stretch, requires reasoning traces saved to `ai_interactions.md`, not just printed).
+
+**What was done:**
+- `src/pawpal/agent.py`: `PlannerAgent.run(pet, tasks, available_minutes)` implements
+  plan (retrieve guidance) -> act (`build_schedule`) -> critique -> revise, up to
+  `max_iterations` (default 2). `_critique()` dispatches to `_critique_with_claude()` (real
+  Anthropic API call, model `claude-haiku-4-5-20251001`, JSON-only response contract) when
+  `ANTHROPIC_API_KEY` is set, else `_critique_with_rules()` (deterministic: flags dog schedules
+  with <30 min of `category="exercise"` tasks, matching `knowledge/dog_exercise.md`). Any
+  exception from the Claude call falls back to rules automatically.
+- `format_trace_markdown()` renders a run's `TraceEntry` list + final explanation as markdown.
+- `app.py`: replaced the direct `build_schedule()` call with `AGENT.run(...)`; added a task
+  category selector to the UI (categories feed both retrieval queries and the exercise-minutes
+  critique); added an "Agent reasoning trace" expander.
+- `ai_interactions.md`: rewritten with a real, non-templated trace from an actual run (an
+  under-exercised dog schedule that gets revised), plus the exact command used to produce it and
+  a plain-language walkthrough — satisfies "traces saved... not just printed to terminal."
+- `tests/test_agent.py`: 5 tests — loop terminates and produces a schedule; an engineered
+  under-exercised-dog scenario triggers exactly the expected revision and the final schedule
+  meets the guideline; a well-covered schedule needs no revision; trace markdown structure is
+  correct; the real Claude code path is exercised end-to-end via a fake `anthropic` module
+  injected into `sys.modules` (no network call or real key needed, but the request/response
+  handling code actually runs).
+
+**Verification:**
+- `python -m pytest -v` → 18/18 passed (5 new agent tests + 13 prior).
+- Real end-to-end run via `python -c` for the under-exercised-dog scenario, full trace pasted
+  into README and `ai_interactions.md` — shows the schedule actually changes (Grooming gets
+  bumped for Morning walk) after critique, not a cosmetic difference.
+- Headless Streamlit boot check on port 8504 → HTTP 200, no import/runtime errors with the agent
+  wired into `app.py`.
+
+**Divergence from spec:** None. Design choice made explicit in README/model_card: only one
+guideline (dog exercise minutes) is currently checked by the rule-based fallback, since it's the
+one guideline verifiable from purely structured data (category + duration) without an LLM call;
+the real Claude critique path can reason about any of the retrieved guidance text, not just this
+one rule, which is the intended division of labor between the deterministic fallback and the
+real model.
+
+**Status:** Complete.
