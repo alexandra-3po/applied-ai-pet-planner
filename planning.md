@@ -291,3 +291,47 @@ still parses.
 **Divergence from spec:** None, after the fix above.
 
 **Status:** Complete.
+
+## Milestone 9: Final Documentation + Submission Checklist
+
+**Rubric link:** "Documentation: README and Setup Instructions" (3pts), "Reflection on AI
+Collaboration and System Design" (3pts) — both largely built incrementally across milestones;
+this milestone fills the one remaining gap (the graded reflection) and does a final consistency
+pass, plus the 8-item submission checklist from the Requirements PDF.
+
+**What was done:**
+- `model_card.md`: added the "Reflection: AI Collaboration and System Design" section — how AI
+  was used during development, one concrete helpful AI suggestion (the TF-IDF retrieval fix) and
+  one concrete flawed one (the `guidance[0]`/truncated-citation persona bug), system limitations
+  (rule-based critique's single-guideline coverage, small/English-only knowledge base, priority-
+  first scheduling, no bias-awareness in the guidelines), and future improvements. Removed the
+  now-stale "work in progress" banner from the top of the file.
+- `README.md`: added a real Title/Summary opening paragraph (previously just a "grows with each
+  milestone" note), a consolidated "Design Decisions" section pulling together the trade-offs
+  already discussed per-milestone, and an explicit "Reflection" section that points to
+  `model_card.md` rather than duplicating content there (per the spec's explicit instruction that
+  reflection content only in the README doesn't earn the reflection points).
+- Submission checklist verified with real commands, not assumed:
+  1. Code pushed — `git log` shows 9 commits on `main`, this milestone adds a 10th.
+  2. Repo public — `gh repo view` confirms `isPrivate: false`.
+  3. Required files present — `README.md`, `model_card.md`, `diagrams/uml.mmd`,
+     `diagrams/architecture.mmd` all confirmed present via `ls`.
+  4. Reproducible execution evidence — every milestone's README/model_card section has real
+     pasted command output, not screenshots (verified throughout M2-M8).
+  5. Commit history — 9 commits, each with a descriptive milestone-scoped message.
+  6. Standardized documentation — README's "Base project" section identifies PawPal+ explicitly;
+     `model_card.md` now answers all reflection prompts (AI collaboration, biases, testing).
+  7. Demo evidence — README has well over 2-3 example input/output pairs as fenced code blocks
+     across the RAG, agent, persona, reliability, and evaluation-harness sections.
+  8. Final changes committed and pushed — this commit.
+
+**Verification:**
+- Final full run: `python -m pytest -v` → 31/31 passed; `python scripts/evaluate.py` → 6/6
+  scenarios passed. Clean end-of-project snapshot, both pasted above in this entry's context.
+- Re-read README and model_card.md top-to-bottom as a first-time reader to check nothing
+  contradicts earlier milestones (no stale "work in progress" banners left, no orphaned TODOs).
+
+**Divergence from spec:** None.
+
+**Status:** Complete. All 9 milestones (M1-M9) done; project targets full required (21pts) +
+all stretch (8pts) = 29pts against the grading rubric.

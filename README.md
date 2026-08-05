@@ -1,6 +1,16 @@
 # Applied AI Pet Planner
 
-> This README grows with each milestone. See `planning.md` for a full log of what's been built and how it was verified. AI feature sections (RAG, agentic planning, specialization, reliability, evaluation) are filled in as those milestones land.
+An agentic pet-care task planner: it takes an owner's daily pet-care tasks and constraints, plans
+a schedule, checks that schedule against real care guidelines it retrieves on the fly, and revises
+itself when it falls short — then explains the result in a configurable tone. It matters because a
+schedule alone (Milestone 2's original scope) can't tell an owner *whether* it's actually good pet
+care; this system does, using retrieval, a self-critiquing agent loop, and an explicit safety net
+so a wrong or unsafe plan is never shown silently.
+
+> This README grows with each milestone (see the Milestone sections below for what was built and
+> how it was verified) and closes with a Design Decisions summary. The graded AI-collaboration
+> reflection, limitations, and biases live in `model_card.md`, not here — see the Reflection
+> section at the end of this file for that pointer. `planning.md` has the full build log.
 
 ## Base project
 
@@ -364,3 +374,40 @@ for balanced brackets. It also renders natively in GitHub's file viewer and the 
     harness (`scripts/evaluate.py`) both exercise these same real components directly, rather than
     only being validated through the UI; every run also writes to `logs/pawpal.log`, and one real
     captured run's reasoning trace is committed in `ai_interactions.md` for human inspection.
+
+## Design Decisions
+
+Trade-offs made across the milestones, consolidated here (each is also discussed in more depth in
+its originating milestone section above or in `planning.md`):
+
+- **Priority-first scheduling, not globally time-optimal** (Milestone 2): tasks are committed in
+  priority order without look-ahead, so a low-priority task that fits can be scheduled ahead of a
+  higher-priority one that doesn't. Chosen because it matches the spec's "priority + duration"
+  scheduling model and stays simple and explainable; the trade-off is it can leave time unused in
+  edge cases a bin-packing approach would fill.
+- **TF-IDF retrieval instead of naive keyword counting** (Milestone 3): switched after naive
+  counting caused wrong groundings (see model_card.md's Reflection). The trade-off is a bit more
+  code (document-frequency computation) for meaningfully better retrieval correctness.
+- **Deterministic fallback for every Claude-backed feature, not a hard dependency** (Milestones 4,
+  5): the critique and persona narration both work with zero API key and zero network calls,
+  falling back to rule-based/templated behavior. This was a project constraint (no API key
+  available yet) turned into a design principle: the system is always runnable and gradeable, and
+  the real LLM code paths are still implemented and tested via mocked clients rather than skipped.
+- **Independent output guardrail, not just trusting the scheduler** (Milestone 6): even though
+  `build_schedule` should never violate the budget/overlap invariants, `guardrails.py` re-checks
+  them anyway and is tested against hand-built adversarial schedules that bypass the scheduler
+  entirely. The trade-off is a small amount of redundant computation for a genuine safety net
+  against future bugs, not just current ones.
+- **Small, hand-authored knowledge base (5 docs) instead of a larger scraped corpus**
+  (Milestone 3): keeps retrieval fast, dependency-free, and easy to verify by hand, at the cost of
+  coverage — some species/category combinations (e.g. dog enrichment) have no precise match yet.
+- **Standalone evaluation script separate from pytest** (Milestone 7): `scripts/evaluate.py`
+  exists specifically to produce a human-readable pass/fail narrative end-to-end, distinct from
+  pytest's per-function unit tests — trades some duplication of setup code for a report that
+  reads like the spec's own example ("5 out of 6 tests passed...").
+
+## Reflection
+
+The graded reflection on AI collaboration during development (how AI was used, one helpful and
+one flawed AI suggestion, system limitations, and biases) is in [`model_card.md`](model_card.md),
+per the assignment's instructions — not duplicated here.

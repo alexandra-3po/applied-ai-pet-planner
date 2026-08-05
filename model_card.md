@@ -1,10 +1,5 @@
 # Model Card
 
-> This file will accumulate the graded responsible-AI reflection (AI collaboration, helpful vs.
-> flawed AI suggestions, limitations, biases, testing results) as milestones land. The
-> Specialization section below is filled in now (Milestone 5); the full reflection section is
-> completed in the final milestone once all features exist to reflect on.
-
 ## Specialization: Baseline vs. "Coach Paws" persona
 
 **What this is:** `src/pawpal/persona.py` renders the same schedule two ways: a plain mechanical
@@ -128,3 +123,56 @@ switching to TF-IDF weighting (see Milestone 3).
 cadence without an LLM call, so those guidelines are only enforced when a real Claude API key is
 present. The knowledge base has no dog-specific enrichment document (see Milestone 3), so a dog's
 "Playtime" task retrieves cat-enrichment content instead.
+
+## Reflection: AI Collaboration and System Design
+
+**How AI was used during development:** this entire project was built through Claude Code, working
+milestone-by-milestone: for each milestone, the rubric was quoted first, an implementation +
+verification plan was proposed and approved before any code was written, then code was implemented,
+actually run (not just described), and the real output fed back into documentation. AI was used
+for: writing the domain logic and tests, drafting the RAG retriever and its scoring function,
+designing the plan/act/critique/revise agent loop and its Claude API integration with a
+deterministic fallback, and writing/maintaining all the documentation you're reading now
+(`README.md`, `planning.md`, this file).
+
+**A helpful AI suggestion:** switching the RAG retriever from naive term-frequency counting to
+presence-based TF-IDF (Milestone 3). The naive version kept grounding a dog's "Feeding" task in the
+`dog_exercise.md` document instead of `feeding_basics.md`, because the word "dog" appears in nearly
+every document in the knowledge base and swamped the actually distinctive word ("feeding"). Down-
+weighting common words and up-weighting rare ones (standard IDF) fixed this immediately and made
+every subsequent retrieval-dependent feature (the agent's critique, the persona's guideline
+citation, the evaluation harness) noticeably more correct. This wasn't a cosmetic fix — it changed
+which document got cited in the user-facing output.
+
+**A flawed AI suggestion:** the first version of the "Coach Paws" persona template cited
+`guidance[0]` — the retrieval result for whichever task happened to be listed *first* by the owner
+— instead of the most relevant guidance across the whole schedule. Combined with the knowledge base
+being hard-wrapped prose and a naive `text.splitlines()[0]` extraction, this produced a real
+user-facing bug: a sentence that cited an irrelevant, mid-sentence-truncated guideline (see
+Milestone 5's "A bug this comparison caught" section above for the exact broken output). Neither
+issue was caught by the automated tests, which only checked structural properties ("differs from
+baseline," "has the right shape") — it was only caught by actually running the comparison and
+reading the printed output line by line. That's the main lesson this project reinforced: passing
+tests is necessary but not sufficient; a human (or an agent instructed to actually run and read
+output, not just assert on it) still has to look at what the system produces.
+
+**System limitations:**
+- The rule-based critique fallback (used whenever `ANTHROPIC_API_KEY` isn't set — which is the
+  default in this environment) only verifies one guideline structurally (dog exercise minutes).
+  It cannot check medication timing, feeding frequency, or grooming cadence the way the real
+  Claude-backed critique path can reason about arbitrary retrieved text.
+- The knowledge base is small (5 documents, English-only, generic/US pet-care conventions) and has
+  no dog-specific enrichment document, so some retrievals (a dog's "Playtime" task) fall back to
+  the closest available match (cat enrichment content) rather than a precise one.
+- The scheduler is priority-first, not globally time-optimal — documented in Milestone 2, but worth
+  repeating here: a schedule can leave time unused if a slightly-too-long higher-priority task is
+  tried before a shorter, lower-priority one that would have fit better in aggregate.
+- Neither the RAG retriever nor the rule-based critique account for potential bias in what "good
+  pet care" looks like — the knowledge base reflects one set of generic care guidelines and
+  doesn't represent regional, cultural, or individual-animal variation (e.g., breed-specific or
+  medically-necessary deviations from the stated exercise/feeding ranges).
+
+**Future improvements:** expand the knowledge base (more species, more categories, cited external
+sources); let the real Claude critique path check every retrieved guideline, not just the one the
+rule-based fallback can verify structurally; add a confidence score to the agent's critique output;
+support recurring/weekly tasks instead of single-day schedules only.
