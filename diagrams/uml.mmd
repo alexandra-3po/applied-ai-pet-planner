@@ -1,0 +1,43 @@
+classDiagram
+    class Owner {
+        +str name
+        +str preferences
+    }
+
+    class Pet {
+        +str name
+        +str species
+    }
+
+    class Task {
+        +str title
+        +int duration_minutes
+        +Priority priority
+        +str category
+        +priority_weight() int
+    }
+
+    class ScheduledItem {
+        +Task task
+        +int start_minute
+        +bool included
+        +str reason
+    }
+
+    class Schedule {
+        +list~ScheduledItem~ items
+        +included_items() list~ScheduledItem~
+        +skipped_items() list~ScheduledItem~
+        +total_scheduled_minutes() int
+    }
+
+    class Scheduler {
+        +build_schedule(tasks, available_minutes) Schedule
+    }
+
+    Owner "1" --> "1" Pet : cares for
+    Pet "1" --> "*" Task : has care tasks
+    Scheduler ..> Task : reads
+    Scheduler --> Schedule : produces
+    Schedule "1" --> "*" ScheduledItem : contains
+    ScheduledItem --> Task : wraps

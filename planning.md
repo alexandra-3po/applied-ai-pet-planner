@@ -16,3 +16,34 @@ This file tracks milestone-by-milestone progress: what was planned, what was bui
 - `git log --oneline` and `git remote -v` confirmed initial commit pushed to `main`.
 
 **Status:** Complete.
+
+## Milestone 2: Base PawPal+ Core
+
+**Rubric link:** "Clear Identification of the Base Project and Its Original Scope" (3pts) — this
+milestone produces the real implementation that the README's base-project section (identification +
+description + accurate context) points to.
+
+**What was done:**
+- `src/pawpal/models.py`: `Owner`, `Pet`, `Task` (validated duration/priority), `ScheduledItem`, `Schedule`.
+- `src/pawpal/scheduler.py`: `build_schedule()` — priority-then-duration greedy scheduler with
+  plain-language include/skip reasons; `format_time()` helper.
+- `app.py`: real Streamlit UI replacing the stub — owner/pet form, task list, "Generate schedule"
+  button wired to `build_schedule`, displays plan + skip reasons.
+- `tests/test_scheduler.py`: 8 tests (priority ordering, duration tie-break, budget overflow,
+  empty input, invalid duration/priority/budget, time formatting).
+- `diagrams/uml.mmd`: real class diagram matching the implementation (replaced the placeholder).
+- `requirements.txt`: `streamlit`, `pytest`.
+
+**Verification:**
+- `python -m pytest -v` → 8/8 passed (output pasted in README).
+- Headless Streamlit boot check: `streamlit run app.py --server.headless true` on port 8502,
+  `curl` returned HTTP 200, no import/runtime errors in server log.
+- Directly ran the exact scheduling call path (`Owner`/`Pet`/`Task` → `build_schedule`) with sample
+  data matching what the UI would produce; verified correct priority ordering and skip reasoning
+  (output pasted in README "Sample interaction").
+
+**Divergence from spec:** None significant. Noted one design decision explicitly in the README:
+scheduling is priority-first (no look-ahead/optimal packing), so a lower-priority task that fits
+can be scheduled before a higher-priority task that doesn't — intended, not a bug.
+
+**Status:** Complete.
