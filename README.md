@@ -80,3 +80,70 @@ Note: scheduling is priority-first, not globally time-optimal — a low-priority
 be scheduled ahead of a medium-priority task that doesn't, because tasks are committed in priority
 order without look-ahead. This is documented, intended behavior (matches the "priority-first" spec)
 rather than a bug.
+
+## Milestone 3: RAG (Retrieval-Augmented Generation)
+
+**Required AI feature:** the schedule explanations are augmented with retrieved pet-care guidance —
+not just printed alongside the plan, but selected per-task and folded into each schedule line.
+
+- `knowledge/` — five markdown source documents, one per care topic (multi-source retrieval, for
+  the stretch requirement): `dog_exercise.md`, `cat_enrichment.md`, `medication_routines.md`,
+  `grooming_basics.md`, `feeding_basics.md`. Each file has multiple `##`-delimited sections.
+- `src/pawpal/retrieval.py` — `load_knowledge_base()` parses all `.md` files into chunks
+  (source + heading + text). `retrieve(query, chunks, k)` scores chunks with presence-based
+  TF-IDF (`idf(token) = log((1+N)/(1+df)) + 1`, heading matches double-weighted) and light
+  singular/plural stemming, so a query like `"dog Feeding feeding"` doesn't get swamped by the
+  word "dog" appearing in nearly every doc — the distinctive word ("feeding") dominates instead.
+- `app.py` integration: for each scheduled task, a query built from `{species} {task title}
+  {task category}` retrieves the single most relevant chunk and appends its citation + first
+  line directly onto that task's line in the plan. A "📚 All retrieved care guidance" expander
+  also shows the top-5 chunks relevant to the whole day's tasks.
+- `tests/test_retrieval.py` — 5 tests: multi-source loading, dog-exercise query ranks the
+  dog-exercise chunk top, cat-litter-box query ranks the litter-box chunk top, an irrelevant
+  query returns no matches, and `k` is respected.
+
+### RAG before/after example
+
+**Before (Milestone 2, no retrieval)** — a schedule line was just the mechanical scheduling reason:
+
+```
+08:10 - Morning walk (30 min) [high] - included: high priority, fits in remaining 80 min
+```
+
+**After (Milestone 3, retrieval-augmented)** — the same line now cites grounding guidance that
+actually changes what's shown to the owner:
+
+```
+08:10 - Morning walk (30 min) [high] - included: high priority, fits in remaining 80 min
+  -> Guidance (dog_exercise.md -> Daily walk requirements, score=13.61): Most adult dogs need
+     30-60 minutes of physical exercise per day, split across one or two walks.
+```
+
+And for a feeding task, TF-IDF weighting (not naive keyword count) correctly grounds it in
+`feeding_basics.md` rather than the dog-exercise doc, even though "dog" appears in both:
+
+```
+08:00 - Feeding (10 min) [high] - included: high priority, fits in remaining 90 min
+  -> Guidance (feeding_basics.md -> Portion consistency, score=2.39): Feeding at consistent
+     times and portions each day helps with house-training, digestion, ...
+```
+
+**Known limitation:** the knowledge base has no dog-specific play/enrichment doc, so a dog's
+"Playtime" task currently retrieves `cat_enrichment.md -> Environmental enrichment`. The guidance
+text itself (rotating toys reduce boredom-driven behavior) is still broadly applicable across
+species, but it isn't species-precise — documented here rather than hidden, and a natural next
+addition would be a `dog_enrichment.md` source.
+
+### Run the retrieval tests
+
+```bash
+python -m pytest tests/test_retrieval.py -v
+```
+
+```
+tests/test_retrieval.py::test_knowledge_base_loads_multiple_sources PASSED [ 20%]
+tests/test_retrieval.py::test_dog_exercise_query_ranks_relevant_chunk_top PASSED [ 40%]
+tests/test_retrieval.py::test_cat_litter_box_query_ranks_relevant_chunk_top PASSED [ 60%]
+tests/test_retrieval.py::test_irrelevant_query_returns_no_matches PASSED [ 80%]
+tests/test_retrieval.py::test_retrieve_respects_k_limit PASSED           [100%]
+```

@@ -6,6 +6,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 import streamlit as st
 from pawpal.models import Owner, Pet, Task
 from pawpal.scheduler import build_schedule, format_time
+from pawpal.retrieval import load_knowledge_base, retrieve
+
+KNOWLEDGE_BASE = load_knowledge_base()
 
 st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="centered")
 
@@ -74,8 +77,14 @@ if st.button("Generate schedule", type="primary"):
 
     st.subheader(f"Daily plan for {pet.name} ({pet.species}) — owner: {owner.name}")
     for item in schedule.included_items:
-        st.write(f"**{format_time(item.start_minute)}** — {item.task.title} "
-                  f"({item.task.duration_minutes} min) [{item.task.priority}] — {item.reason}")
+        guidance_query = f"{pet.species} {item.task.title} {item.task.category}"
+        matches = retrieve(guidance_query, KNOWLEDGE_BASE, k=1)
+        line = (f"**{format_time(item.start_minute)}** — {item.task.title} "
+                f"({item.task.duration_minutes} min) [{item.task.priority}] — {item.reason}")
+        if matches:
+            chunk, _score = matches[0]
+            line += f"  \n  -> *Care guidance ({chunk.citation}): {chunk.text.splitlines()[0]}*"
+        st.write(line)
 
     if schedule.skipped_items:
         st.warning("Some tasks didn't fit in today's schedule:")
@@ -83,3 +92,12 @@ if st.button("Generate schedule", type="primary"):
             st.write(f"- {item.task.title}: {item.reason}")
 
     st.caption(f"Total scheduled: {schedule.total_scheduled_minutes} / {available_minutes} min")
+
+    with st.expander("📚 All retrieved care guidance for this pet/tasks"):
+        overall_query = f"{pet.species} " + " ".join(t.title for t in tasks)
+        overall_matches = retrieve(overall_query, KNOWLEDGE_BASE, k=5)
+        if overall_matches:
+            for chunk, score in overall_matches:
+                st.markdown(f"**{chunk.citation}** (relevance score: {score})\n\n{chunk.text}")
+        else:
+            st.write("No matching guidance found for these tasks.")
